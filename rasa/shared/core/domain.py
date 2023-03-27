@@ -85,6 +85,7 @@ KEY_INTENTS = "intents"
 KEY_ENTITIES = "entities"
 KEY_RESPONSES = "responses"
 KEY_ACTIONS = "actions"
+KEY_ACTIONS_PARAMS = "actions_params"
 KEY_FORMS = "forms"
 KEY_E2E_ACTIONS = "e2e_actions"
 KEY_RESPONSES_TEXT = "text"
@@ -246,6 +247,7 @@ class Domain:
         slots = cls.collect_slots(domain_slots)
         domain_actions = data.get(KEY_ACTIONS, [])
         actions = cls._collect_action_names(domain_actions)
+        actions_params = data.get(KEY_ACTIONS_PARAMS, {})
 
         additional_arguments = {
             **data.get("config", {}),
@@ -265,6 +267,7 @@ class Domain:
             slots=slots,
             responses=responses,
             action_names=actions,
+            actions_params=actions_params,
             forms=data.get(KEY_FORMS, {}),
             data=Domain._cleaned_data(data),
             action_texts=data.get(KEY_E2E_ACTIONS, []),
@@ -730,6 +733,7 @@ class Domain:
         slots: List[Slot],
         responses: Dict[Text, List[Dict[Text, Any]]],
         action_names: List[Text],
+        actions_params: Dict[Text, Dict[Text, Any]],
         forms: Union[Dict[Text, Any], List[Text]],
         data: Dict,
         action_texts: Optional[List[Text]] = None,
@@ -770,6 +774,7 @@ class Domain:
         self.responses = responses
 
         self.action_texts = action_texts if action_texts is not None else []
+        self.actions_params = actions_params
 
         data_copy = copy.deepcopy(data)
         self._data = self._preprocess_domain_dict(

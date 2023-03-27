@@ -38,11 +38,30 @@ mapping:
       - type: str
       - type: map
         mapping:
-          regex;([A-Za-z]+):
+          regex;([\x00-\x7F]+):
             type: map
             mapping:
               send_domain:
                 type: "bool"
+  actions_params:
+    type: "map"
+    allowempty: True
+    mapping:
+      regex;([A-Za-z]+):
+        type: "map"
+        mapping:
+          base_action:
+            type: "str"
+            required: True
+          args:
+            type: "seq"
+            sequence:
+            - type: "any"
+          kwargs:
+            type: "map"
+            mapping:
+              regex;([A-Za-z]+):
+                type: "any"
   responses:
     # see utils/schemas/responses.yml
     include: responses
