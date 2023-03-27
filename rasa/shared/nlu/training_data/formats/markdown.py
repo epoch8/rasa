@@ -29,7 +29,8 @@ INTENT = "intent"
 SYNONYM = "synonym"
 REGEX = "regex"
 LOOKUP = "lookup"
-AVAILABLE_SECTIONS = [INTENT, SYNONYM, REGEX, LOOKUP]
+GAZETTE = "gazette"
+AVAILABLE_SECTIONS = [INTENT, SYNONYM, REGEX, LOOKUP, GAZETTE]
 MARKDOWN_SECTION_MARKERS = [f"## {s}:" for s in AVAILABLE_SECTIONS]
 
 item_regex = re.compile(r"\s*[-*+]\s*((?:.+\s*)*)")
@@ -51,6 +52,7 @@ class MarkdownReader(TrainingDataReader):
         self.entity_synonyms = {}
         self.regex_features = []
         self.lookup_tables = []
+        self.gazette = []
 
         if not ignore_deprecation_warning:
             rasa.shared.utils.io.raise_deprecation_warning(
@@ -77,6 +79,7 @@ class MarkdownReader(TrainingDataReader):
             self.entity_synonyms,
             self.regex_features,
             self.lookup_tables,
+            self.gazette,
         )
 
     @staticmethod
@@ -110,6 +113,7 @@ class MarkdownReader(TrainingDataReader):
         """Parses an md list item line based on the current section type."""
         import rasa.shared.nlu.training_data.lookup_tables_parser as lookup_tables_parser
         import rasa.shared.nlu.training_data.synonyms_parser as synonyms_parser
+        import rasa.shared.nlu.training_data.gazette_parser as gazette_parser # bf
         from rasa.shared.nlu.training_data import entities_parser
 
         match = re.match(item_regex, line)
@@ -134,6 +138,10 @@ class MarkdownReader(TrainingDataReader):
             elif self.current_section == LOOKUP:
                 lookup_tables_parser.add_item_to_lookup_tables(
                     self.current_title, item, self.lookup_tables
+                )
+            elif self.current_section == GAZETTE:
+                gazette_parser.add_item_to_gazette(
+                    self.current_title, item, self.gazette,
                 )
 
     def _set_current_section(self, section: Text, title: Text) -> None:
@@ -179,6 +187,7 @@ class MarkdownWriter(TrainingDataWriter):
         md += self._generate_synonyms_md(training_data)
         md += self._generate_regex_features_md(training_data)
         md += self._generate_lookup_tables_md(training_data)
+        md += self._generate_gazette_md(training_data)
 
         return md
 
@@ -257,6 +266,19 @@ class MarkdownWriter(TrainingDataWriter):
                     md += self.generate_list_item(e)
             else:
                 md += self._generate_fname_md(elements)
+        return md
+
+    def _generate_gazette_md(self, training_data):
+        md = ""
+        gazette = training_data.gazette
+        for i, item in enumerate(gazette):
+            md += self._generate_section_header_md(GAZETTE, item["value"])
+            gazette_els = item["gazette"]
+            if isinstance(gazette_els, list):
+                for e in gazette_els:
+                    md += self.generate_list_item(e)
+            else:
+                md += self._generate_fname_md(gazette_els)
         return md
 
     @staticmethod

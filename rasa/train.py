@@ -112,7 +112,7 @@ def train(
 
 async def train_async(
     domain: Union[Domain, Text],
-    config: Text,
+    config: Dict[Text, Text],
     training_files: Optional[Union[Text, List[Text]]],
     output: Text = DEFAULT_MODELS_PATH,
     dry_run: bool = False,
@@ -128,7 +128,7 @@ async def train_async(
 
     Args:
         domain: Path to the domain file.
-        config: Path to the config for Core and NLU.
+        config: Dict of paths to the config for Core and NLU. Keys are language codes
         training_files: Paths to the training data for Core and NLU.
         output_path: Output path.
         dry_run: If `True` then no training will be done, and the information about
@@ -148,17 +148,23 @@ async def train_async(
     Returns:
         An instance of `TrainingResult`.
     """
-    file_importer = TrainingDataImporter.load_from_config(
-        config, domain, training_files
-    )
+    # file_importer = TrainingDataImporter.load_from_config(
+    #    config, domain, training_files
+    # )
     with TempDirectoryPath(tempfile.mkdtemp()) as train_path:
-        domain = await file_importer.get_domain()
+        # bf mod
+        from rasa_addons.importers import BotfrontFileImporter
+        from pathlib import Path
 
-        if domain.is_empty():
-            nlu_model = await handle_domain_if_not_exists(
-                file_importer, output, fixed_model_name
-            )
-            return TrainingResult(model=nlu_model)
+        os.mkdir(Path(train_path) / DEFAULT_CORE_SUBDIRECTORY_NAME)
+        file_importer = BotfrontFileImporter(config, domain, training_files)
+        # domain = await file_importer.get_domain()
+
+        # if domain.is_empty():
+        #     return await handle_domain_if_not_exists(
+        #         file_importer, output_path, fixed_model_name
+        #     )
+        # /bf mod
 
         return await _train_async_internal(
             file_importer,
@@ -281,59 +287,72 @@ async def _train_async_internal(
             print_warning(text) if code > 0 else print_success(text)
         return TrainingResult(code=code)
 
-    if nlu_data.has_e2e_examples():
-        rasa.shared.utils.common.mark_as_experimental_feature("end-to-end training")
+    # if nlu_data.has_e2e_examples():
+    #     rasa.shared.utils.common.mark_as_experimental_feature("end-to-end training")
 
-    if stories.is_empty() and nlu_data.contains_no_pure_nlu_data():
-        rasa.shared.utils.cli.print_error(
-            "No training data given. Please provide stories and NLU data in "
-            "order to train a Rasa model using the '--data' argument."
-        )
-        return TrainingResult()
+    # if stories.is_empty() and nlu_data.contains_no_pure_nlu_data():
+    #     rasa.shared.utils.cli.print_error(
+    #         "No training data given. Please provide stories and NLU data in "
+    #         "order to train a Rasa model using the '--data' argument."
+    #     )
+    #     return TrainingResult()
 
-    if stories.is_empty():
-        rasa.shared.utils.cli.print_warning(
-            "No stories present. Just a Rasa NLU model will be trained."
-        )
-        trained_model = await _train_nlu_with_validated_data(
-            file_importer,
-            output=output_path,
-            fixed_model_name=fixed_model_name,
-            persist_nlu_training_data=persist_nlu_training_data,
-            additional_arguments=nlu_additional_arguments,
-            model_to_finetune=model_to_finetune,
-            finetuning_epoch_fraction=finetuning_epoch_fraction,
-        )
-        return TrainingResult(model=trained_model)
+    # if stories.is_empty():
+    #     rasa.shared.utils.cli.print_warning(
+    #         "No stories present. Just a Rasa NLU model will be trained."
+    #     )
+    #     trained_model = await _train_nlu_with_validated_data(
+    #         file_importer,
+    #         output=output_path,
+    #         fixed_model_name=fixed_model_name,
+    #         persist_nlu_training_data=persist_nlu_training_data,
+    #         additional_arguments=nlu_additional_arguments,
+    #         model_to_finetune=model_to_finetune,
+    #         finetuning_epoch_fraction=finetuning_epoch_fraction,
+    #     )
+    #     return TrainingResult(model=trained_model)
 
-    # We will train nlu if there are any nlu example, including from e2e stories.
-    if nlu_data.contains_no_pure_nlu_data() and not nlu_data.has_e2e_examples():
-        rasa.shared.utils.cli.print_warning(
-            "No NLU data present. Just a Rasa Core model will be trained."
-        )
-        trained_model = await _train_core_with_validated_data(
-            file_importer,
-            output=output_path,
-            fixed_model_name=fixed_model_name,
-            additional_arguments=core_additional_arguments,
-            model_to_finetune=model_to_finetune,
-            finetuning_epoch_fraction=finetuning_epoch_fraction,
-        )
+    # # We will train nlu if there are any nlu example, including from e2e stories.
+    # if nlu_data.contains_no_pure_nlu_data() and not nlu_data.has_e2e_examples():
+    #     rasa.shared.utils.cli.print_warning(
+    #         "No NLU data present. Just a Rasa Core model will be trained."
+    #     )
+    #     trained_model = await _train_core_with_validated_data(
+    #         file_importer,
+    #         output=output_path,
+    #         fixed_model_name=fixed_model_name,
+    #         additional_arguments=core_additional_arguments,
+    #         model_to_finetune=model_to_finetune,
+    #         finetuning_epoch_fraction=finetuning_epoch_fraction,
+    #     )
 
-        return TrainingResult(model=trained_model)
+    #     return TrainingResult(model=trained_model)
 
     new_fingerprint = await model.model_fingerprint(file_importer)
     old_model = model.get_latest_model(output_path)
+    nlu_untrainable = [l for l, d in nlu_data.items() if d.is_empty()]  # bf
+    domain = await file_importer.get_domain()  # bf
+    core_untrainable = domain.is_empty() or stories.is_empty()  # bf
 
     if not force_training:
         fingerprint_comparison = model.should_retrain(
             new_fingerprint,
             old_model,
             train_path,
-            has_e2e_examples=nlu_data.has_e2e_examples(),
+            # has_e2e_examples=nlu_data.has_e2e_examples(), # bf
+            nlu_untrainable=nlu_untrainable,  # bf
         )
     else:
         fingerprint_comparison = FingerprintComparisonResult(force_training=True)
+        fingerprint_comparison.nlu = [
+            l
+            for l in new_fingerprint.get("nlu-config", {}).keys()
+            if l not in nlu_untrainable
+        ]  # bf
+
+    fingerprint_comparison.core = (
+        fingerprint_comparison.core and not core_untrainable
+    )  # bf
 
     if fingerprint_comparison.is_training_required():
         async with telemetry.track_model_training(
@@ -390,12 +409,14 @@ async def _do_training(
             output=output_path,
             train_path=train_path,
             fixed_model_name=fixed_model_name,
+            retrain_nlu=fingerprint_comparison_result.nlu,
             persist_nlu_training_data=persist_nlu_training_data,
             additional_arguments=nlu_additional_arguments,
             model_to_finetune=model_to_finetune,
             finetuning_epoch_fraction=finetuning_epoch_fraction,
         )
-        interpreter_path = os.path.join(model_path, DEFAULT_NLU_SUBDIRECTORY_NAME)
+        # interpreter_path = os.path.join(model_path, DEFAULT_NLU_SUBDIRECTORY_NAME)
+        _, interpreter_path = model.get_model_subdirectories(model_path)  # bf
     else:
         rasa.shared.utils.cli.print_color(
             "NLU data/configuration did not change. No need to retrain NLU model.",
@@ -516,12 +537,12 @@ async def train_core_async(
         file_importer.get_domain(),
     )
 
-    if nlu_data.has_e2e_examples():
-        rasa.shared.utils.cli.print_error(
-            "Stories file contains e2e stories. Please train using `rasa train` so that"
-            " the NLU model is also trained."
-        )
-        return None
+    # if nlu_data.has_e2e_examples():
+    #     rasa.shared.utils.cli.print_error(
+    #         "Stories file contains e2e stories. Please train using `rasa train` so that"
+    #         " the NLU model is also trained."
+    #     )
+    #     return None
 
     if domain.is_empty():
         rasa.shared.utils.cli.print_error(
@@ -765,6 +786,7 @@ async def _train_nlu_with_validated_data(
     train_path: Optional[Text] = None,
     fixed_model_name: Optional[Text] = None,
     persist_nlu_training_data: bool = False,
+    retrain_nlu: Union[bool, List[Text]] = True,
     additional_arguments: Optional[Dict] = None,
     model_to_finetune: Optional["Text"] = None,
     finetuning_epoch_fraction: float = 1.0,
@@ -782,7 +804,7 @@ async def _train_nlu_with_validated_data(
         else:
             # Otherwise, create a temp train path and clean it up on exit.
             _train_path = stack.enter_context(TempDirectoryPath(tempfile.mkdtemp()))
-        config = await file_importer.get_config()
+        config = await file_importer.get_nlu_config(retrain_nlu)  # bf
         rasa.shared.utils.cli.print_color(
             "Training NLU model...", color=rasa.shared.utils.io.bcolors.OKBLUE
         )
@@ -804,20 +826,33 @@ async def _train_nlu_with_validated_data(
                     f"model within the directory '{output}'."
                 )
 
+        # bf mod >
         async with telemetry.track_model_training(
             file_importer,
             model_type="nlu",
             is_finetuning=model_to_finetune is not None,
         ):
-            await rasa.nlu.train(
-                config,
-                file_importer,
-                _train_path,
-                fixed_model_name="nlu",
-                persist_nlu_training_data=persist_nlu_training_data,
-                model_to_finetune=model_to_finetune,
-                **additional_arguments,
-            )
+            for lang in config:
+                if config[lang]:
+                    rasa.shared.utils.cli.print_color(
+                        "Start training <{}> NLU model ...".format(lang),
+                        color=rasa.shared.utils.io.bcolors.OKBLUE,
+                    )
+                    await rasa.nlu.train(
+                        config[lang],
+                        file_importer,
+                        _train_path,
+                        fixed_model_name="nlu-{}".format(lang),
+                        persist_nlu_training_data=persist_nlu_training_data,
+                        model_to_finetune=model_to_finetune,
+                        **additional_arguments,
+                    )
+                else:
+                    rasa.shared.utils.cli.print_color(
+                        f"NLU data for language <{lang}> didn't change, skipping training...",
+                        color=rasa.shared.utils.io.bcolors.OKBLUE,
+                    )
+        # </ bf mod
         rasa.shared.utils.cli.print_color(
             "NLU model training completed.", color=rasa.shared.utils.io.bcolors.OKBLUE
         )

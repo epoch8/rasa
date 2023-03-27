@@ -6,7 +6,7 @@ import os
 import tempfile
 import traceback
 from collections import defaultdict
-from functools import reduce, wraps
+from functools import reduce, wraps, partial
 from http import HTTPStatus
 from inspect import isawaitable
 from pathlib import Path
@@ -22,6 +22,7 @@ from typing import (
     NoReturn,
     Coroutine,
 )
+import base64
 
 import aiohttp
 from sanic import Sanic, response
@@ -37,6 +38,7 @@ import rasa.shared.utils.common
 import rasa.shared.utils.io
 import rasa.utils.endpoints
 import rasa.utils.io
+import rasa.shared.data
 from rasa.shared.core.training_data.story_writer.yaml_story_writer import (
     YAMLStoryWriter,
 )
@@ -82,6 +84,11 @@ YAML_CONTENT_TYPE = "application/x-yaml"
 OUTPUT_CHANNEL_QUERY_KEY = "output_channel"
 USE_LATEST_INPUT_CHANNEL_AS_OUTPUT_CHANNEL = "latest"
 EXECUTE_SIDE_EFFECTS_QUERY_KEY = "execute_side_effects"
+
+BF_PROJECT_ID = os.getenv("BF_PROJECT_ID")
+SEND_MODEL_AFTER_TRAIN = bool(os.getenv("SEND_MODEL_AFTER_TRAIN"))
+SEND_MODEL_URL = os.getenv("SEND_MODEL_URL")
+SEND_MODEL_API_KEY = os.getenv("SEND_MODEL_API_KEY")
 
 
 class ErrorResponse(Exception):
@@ -487,7 +494,7 @@ def add_root_route(app: Sanic):
     @app.get("/")
     async def hello(request: Request):
         """Check if the server is running and responds with the version."""
-        return response.text("Hello from Rasa: " + rasa.__version__)
+        return response.text("Hello from Rasa: " + rasa.__version_bf__)  # bf
 
 
 def async_if_callback_url(f: Callable[..., Coroutine]) -> Callable:
@@ -654,7 +661,7 @@ def create_app(
 
         return response.json(
             {
-                "version": rasa.__version__,
+                "version": rasa.__version_bf__,  # bf
                 "minimum_compatible_version": MINIMUM_COMPATIBLE_VERSION,
             }
         )
@@ -1005,10 +1012,12 @@ def create_app(
             "train your model.",
         )
 
+        load_model_after = request.args.get("load_model_after", False)
         if request.headers.get("Content-type") == YAML_CONTENT_TYPE:
             training_payload = _training_payload_from_yaml(request, temporary_directory)
         else:
             training_payload = _training_payload_from_json(request, temporary_directory)
+            load_model_after = request.json.get("load_model_after", load_model_after)
 
         try:
             with app.active_training_processes.get_lock():
@@ -1021,6 +1030,27 @@ def create_app(
 
             if training_result.model:
                 filename = os.path.basename(training_result.model)
+
+                if load_model_after is True:
+                    app.agent = await _load_agent(
+                        training_result.model,
+                        endpoints=endpoints,
+                        lock_store=app.agent.lock_store,
+                    )
+
+                    logger.debug(f"Successfully loaded model '{filename}'.")
+
+                if SEND_MODEL_AFTER_TRAIN:
+                    with open(training_result.model, 'rb') as f:
+                        async with aiohttp.ClientSession() as session:
+                            data = {
+                                "projectId": BF_PROJECT_ID,
+                                "model": f
+                            }
+                            params = {"token": SEND_MODEL_API_KEY} if SEND_MODEL_API_KEY else {}
+                            async with session.post(SEND_MODEL_URL, data=data, params=params) as resp:
+                                logger.debug(f"Loaded model to admin with status: {resp.status}")
+                                return response.empty(status=200)
 
                 return await response.file(
                     training_result.model,
@@ -1122,7 +1152,9 @@ def create_app(
 
         if not cross_validation_folds:
             test_coroutine = _evaluate_model_using_test_set(
-                request.args.get("model"), test_data
+                request.args.get("model"),
+                test_data,
+                request.args.get("language"),  # bf
             )
 
         try:
@@ -1137,7 +1169,7 @@ def create_app(
             )
 
     async def _evaluate_model_using_test_set(
-        model_path: Text, test_data_file: Text
+        model_path: Text, test_data_file: Text, language: Text,  # bf
     ) -> Dict:
         logger.info("Starting model evaluation using test set.")
 
@@ -1167,9 +1199,29 @@ def create_app(
         model_directory = eval_agent.model_directory
         _, nlu_model = model.get_model_subdirectories(model_directory)
 
-        return await run_evaluation(
-            data_path, nlu_model, disable_plotting=True, report_as_dict=True
+        # bf >
+        # return run_evaluation(
+        #     data_path, nlu_model, disable_plotting=True, report_as_dict=True
+        # )
+        evaluation = await run_evaluation(
+            data_path,
+            nlu_model.get(language),
+            disable_plotting=True,
+            errors=True,
+            output_directory=model_directory,
         )
+
+        for classifier in evaluation.get("entity_evaluation", {}):
+            entity_errors_file = os.path.join(
+                model_directory, f"{classifier}_errors.json"
+            )
+            if os.path.isfile(entity_errors_file):
+                entity_errors = rasa.shared.utils.io.read_json_file(entity_errors_file)
+                evaluation["entity_evaluation"][classifier][
+                    "predictions"
+                ] = entity_errors
+        return evaluation
+        # </ bf
 
     async def _cross_validate(data_file: Text, config_file: Text, folds: int) -> Dict:
         logger.info(f"Starting cross-validation with {folds} folds.")
@@ -1269,7 +1321,7 @@ def create_app(
             data = emulator.normalise_request_json(request.json)
             try:
                 parsed_data = await app.agent.parse_message_using_nlu_interpreter(
-                    data.get("text")
+                    data.get("text"), lang=request.json.get("lang"),  # bf
                 )
             except Exception as e:
                 logger.debug(traceback.format_exc())
@@ -1354,7 +1406,156 @@ def create_app(
                 f"header.",
             )
 
+    @app.post("/data/convert/<data_type>")
+    @requires_auth(app, auth_token)
+    async def post_data_convert(request: Request, data_type: Text):
+        """Converts Core/NLU training data between JSON/YAML/Markdown."""
+        data, input_format, output_format, language = _parse_convert_request(
+            request, data_type
+        )
+        temp_dir = tempfile.mkdtemp()
+        in_path = os.path.join(temp_dir, f"input.{input_format}")
+        out_path = os.path.join(temp_dir, f"input_converted.{output_format}")
+
+        if type(data) is dict:
+            rasa.shared.utils.io.dump_obj_as_json_to_file(
+                in_path, _split_metadata(data)
+            )
+        else:
+            rasa.shared.utils.io.write_text_file(data, in_path)
+
+        if data_type == "nlu":
+            await request.app.loop.run_in_executor(
+                None, partial(_convert_nlu_training_data, in_path, out_path, language),
+            )
+        else:
+            await _convert_core_training_data(in_path, out_path)
+
+        if output_format == "json":
+            data = rasa.shared.utils.io.read_json_file(out_path)
+            if data_type == "nlu":
+                data = _merge_metadata(data)
+        else:
+            data = rasa.shared.utils.io.read_file(out_path)
+
+        return response.json({"data": data})
+
     return app
+
+
+def _merge_metadata(data):
+    # rasa has a weird structured way to manage metadata so we flatten it
+    examples_with_proper_metadata = []
+    for example in data.get("rasa_nlu_data").get("common_examples", []):
+        metadata = example.pop("metadata", {})
+        metadata.update(metadata.pop("intent", {}))
+        metadata.update(metadata.pop("example", {}))
+        examples_with_proper_metadata.append({**example, "metadata": metadata})
+    data["rasa_nlu_data"]["common_examples"] = examples_with_proper_metadata
+    return data
+
+
+def _split_metadata(data):
+    common_examples = data.get("rasa_nlu_data", {}).get("common_examples", [])
+    if not common_examples:
+        return data
+    for ex in common_examples:
+        metadata = ex.get("metadata", {})
+        language = metadata.pop("language", None)
+        metadata = {"example": metadata} if metadata else {}
+        if language:
+            metadata["intent"] = {"language": language}
+        ex["metadata"] = metadata
+    data["rasa_nlu_data"]["common_examples"] = common_examples
+    return data
+
+
+def _parse_convert_request(request: Request, data_type: Text):
+    validate_request_body(
+        request, "You must provide training data to convert.",
+    )
+    if data_type not in ["nlu", "core"]:
+        raise ErrorResponse(
+            400,
+            "BadRequest",
+            f"Expected data type 'nlu' or 'core', but got 'f{data_type}'.",
+        )
+    rjs = request.json
+    data = rjs.get("data")
+    input_format = rjs.get("input_format")
+    output_format = rjs.get("output_format")
+    supported_formats = (
+        ["md", "json", "yaml", "yml"] if data_type == "nlu" else ["yaml", "yml"]
+    )
+    if output_format == "yaml":
+        output_format = "yml"
+
+    if not data or not input_format or not output_format:
+        raise ErrorResponse(
+            400,
+            "BadRequest",
+            "You must provide training data in the request body, as well as an input and output format.",
+        )
+
+    if output_format not in supported_formats:
+        raise ErrorResponse(
+            400,
+            "BadRequest",
+            f"Could not recognize output format '{output_format}'. Supported output formats: {', '.join(supported_formats)}.",
+        )
+
+    return data, input_format, output_format, rjs.get("language", "en")
+
+
+def _convert_nlu_training_data(
+    in_path: Text, out_path: Text, language: Text,
+):
+    # Since we failed to optimize NLU YAML reading to acceptable levels, the
+    # route can handle pre-parsed YAML.
+    if in_path.endswith("parsed_yaml"):
+        from rasa.shared.nlu.training_data.formats.rasa_yaml import (
+            RasaYAMLReader,
+            RasaYAMLWriter,
+        )
+
+        training_data = RasaYAMLReader().read_from_dict(
+            rasa.shared.utils.io.read_json_file(in_path)
+        )
+        if out_path.endswith("json"):
+            rasa.nlu.utils.write_to_file(out_path, training_data.nlu_as_json(indent=2))
+        elif out_path.endswith("md"):
+            rasa.nlu.utils.write_to_file(out_path, training_data.nlu_as_markdown())
+        else:
+            RasaYAMLWriter().dump(out_path, training_data)
+    elif rasa.shared.data.is_likely_yaml_file(out_path):
+        from rasa.shared.nlu.training_data.loading import load_data
+        from rasa.shared.nlu.training_data.formats.rasa_yaml import RasaYAMLWriter
+
+        training_data = load_data(in_path, language)
+        RasaYAMLWriter().dump(out_path, training_data)
+    else:
+        from rasa.nlu.convert import convert_training_data
+
+        convert_training_data(
+            in_path, out_path, Path(out_path).suffix.replace(".", ""), language,
+        )
+
+
+async def _convert_core_training_data(
+    in_path: Text, out_path: Text,
+):
+    from rasa.core.training.converters import StoryMarkdownToYamlConverter
+    from rasa.shared.core.training_data.story_reader.yaml_story_reader import (
+        YAMLStoryReader,
+    )
+
+    if rasa.shared.data.is_likely_markdown_file(in_path):
+        in_path = Path(in_path)
+        out_path = in_path.parent
+        await StoryMarkdownToYamlConverter.convert_and_write(in_path, out_path)
+    else:
+        steps = YAMLStoryReader().read_from_file(in_path)
+        YAMLStoryWriter().dump(out_path, steps)
 
 
 def _get_output_channel(
@@ -1418,17 +1619,41 @@ def _training_payload_from_json(
     request_payload = request.json
     _validate_json_training_payload(request_payload)
 
-    config_path = os.path.join(temp_dir, "config.yml")
+    # bf >>
+    # config_path = os.path.join(temp_dir, "config.yml")
 
-    rasa.shared.utils.io.write_text_file(request_payload["config"], config_path)
+    # rasa.shared.utils.io.write_text_file(request_payload["config"], config_path)
+
+    config_paths = []
+    for key in request_payload["config"].keys():
+        config_path = os.path.join(temp_dir, "config-{}.yml".format(key))
+        rasa.shared.utils.io.write_text_file(
+            request_payload["config"][key], config_path
+        )
+        config_paths += [config_path]
 
     if "nlu" in request_payload:
-        nlu_path = os.path.join(temp_dir, "nlu.md")
-        rasa.shared.utils.io.write_text_file(request_payload["nlu"], nlu_path)
+        nlu_dir = os.path.join(temp_dir, "nlu")
+        os.mkdir(nlu_dir)
 
-    if "stories" in request_payload:
-        stories_path = os.path.join(temp_dir, "stories.md")
-        rasa.shared.utils.io.write_text_file(request_payload["stories"], stories_path)
+        for key in request_payload["nlu"].keys():
+            nlu_path = os.path.join(nlu_dir, "{}.json".format(key))
+            rasa.shared.utils.io.dump_obj_as_json_to_file(
+                nlu_path, request_payload["nlu"][key]
+            )
+
+    if "augmentation_factor" in request_payload:
+        augmentation_factor = request_payload["augmentation_factor"]
+    else:
+        augmentation_factor = os.environ.get("AUGMENTATION_FACTOR", 50)
+
+    if "fragments" in request_payload:
+        fragments_path = os.path.join(temp_dir, "fragments.yml")
+        rasa.shared.utils.io.write_text_file(
+            request_payload["fragments"], fragments_path
+        )
+
+    # << bf
 
     if "responses" in request_payload:
         responses_path = os.path.join(temp_dir, "responses.md")
@@ -1450,12 +1675,17 @@ def _training_payload_from_json(
 
     return dict(
         domain=domain_path,
-        config=config_path,
+        config=config_paths,  # bf
         training_files=str(temp_dir),
-        output=model_output_directory,
+        output=os.environ.get("MODEL_PATH", DEFAULT_MODELS_PATH),  # bf
         force_training=request_payload.get(
             "force", request.args.get("force_training", False)
         ),
+        fixed_model_name=request_payload.get("fixed_model_name"),  # bf
+        persist_nlu_training_data=True,  # bf
+        core_additional_arguments={
+            "augmentation_factor": int(augmentation_factor),
+        },  # bf
     )
 
 

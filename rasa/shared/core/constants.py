@@ -80,3 +80,6 @@ SLOTS = "slots"
 
 USE_TEXT_FOR_FEATURIZATION = "use_text_for_featurization"
 ENTITY_LABEL_SEPARATOR = "#"
+
+from rasa_addons.core.action_list import action_list # bf
+DEFAULT_ACTION_NAMES += action_list # bf
