@@ -701,13 +701,18 @@ def create_app(
 
     @app.get("/status")
     @requires_auth(app, auth_token)
-    @ensure_loaded_agent(app)
+    # @ensure_loaded_agent(app)
     async def status(request: Request) -> HTTPResponse:
         """Respond with the model name and the fingerprint of that model."""
+        model_file = None
+        model_id = None
+        if app.ctx.agent and app.ctx.agent.is_ready():
+            model_file = app.ctx.agent.processor.model_filename
+            model_id = app.ctx.agent.model_id
         return response.json(
             {
-                "model_file": app.ctx.agent.processor.model_filename,
-                "model_id": app.ctx.agent.model_id,
+                "model_file": model_file,
+                "model_id": model_id,
                 "num_active_training_jobs": app.ctx.active_training_processes.value,
             }
         )
