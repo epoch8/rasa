@@ -2383,14 +2383,21 @@ description = "Open source machine learning framework to automate text- and voic
 category = "main"
 optional = false
 python-versions = ">=3.7,<3.11"
+develop = false
 
 [package.dependencies]
 coloredlogs = ">=10,<16"
-prompt-toolkit = ">=3.0,<3.0.29"
+prompt-toolkit = "^3.0,<3.0.29"
 "ruamel.yaml" = ">=0.16.5,<0.18.0"
-sanic = ">=21.12.0,<22.0.0"
-Sanic-Cors = ">=2.0.0,<3.0.0"
+sanic = "^21.12.0"
+Sanic-Cors = "^2.0.0"
 typing-extensions = ">=4.1.1,<5.0.0"
+
+[package.source]
+type = "git"
+url = "https://github.com/epoch8/rasa-sdk.git"
+reference = "d503418"
+resolved_reference = "d5034183c420d12535da3ea31530c54330e5d48c"
 
 [[package]]
 name = "redis"
@@ -3901,7 +3908,7 @@ transformers = ["transformers", "sentencepiece"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.7,<3.11"
-content-hash = "de8aa558bd96517cb73e83add8cb26bec974a6926ff28e5a0a0edb3796995425"
+content-hash = "4a9b81cbe6b69118ae409067e3af4c58a6f0dcf4c648bdfa53d37a95db2a18e6"
 
 [metadata.files]
 absl-py = [
@@ -5094,6 +5101,7 @@ langcodes = [
 ]
 libclang = [
     {file = "libclang-15.0.6.1-py2.py3-none-macosx_10_9_x86_64.whl", hash = "sha256:8621795e07b87e17fc7aac9f071bc7fe6b52ed6110c0a96a9975d8113c8c2527"},
+    {file = "libclang-15.0.6.1-py2.py3-none-macosx_11_0_arm64.whl", hash = "sha256:0bf192c48a8d2992fc5034393ddc99e772ac30e105df84927d62fc88ef8a659f"},
     {file = "libclang-15.0.6.1-py2.py3-none-manylinux2010_x86_64.whl", hash = "sha256:69b01a23ab543908a661532595daa23cf88bd96d80e41f58ba0eaa6a378fe0d8"},
     {file = "libclang-15.0.6.1-py2.py3-none-manylinux2014_aarch64.whl", hash = "sha256:4a5188184b937132c198ee9de9a8a2316d5fdd1a825398d5ad1a8f5e06f9b40e"},
     {file = "libclang-15.0.6.1-py2.py3-none-manylinux2014_armv7l.whl", hash = "sha256:f7ffa02ac5e586cfffde039dcccc439d88d0feac7d77bf9426d9ba7543d16545"},
@@ -6069,10 +6077,7 @@ questionary = [
 randomname = [
     {file = "randomname-0.1.5.tar.gz", hash = "sha256:e10d14ea10895ee5bc417bdcc6d955e0b586f3bc67094ab87afcf8dcac23ab92"},
 ]
-rasa-sdk = [
-    {file = "rasa_sdk-3.5.0-py3-none-any.whl", hash = "sha256:d2b1455f7e8587ddaa5611c617c0a3555c3080b0a2f934206a9609149cbdbb75"},
-    {file = "rasa_sdk-3.5.0.tar.gz", hash = "sha256:6de94b5dfa778a2910b690a0046f266d79e09c32a0cbbdd1b6fb58e7c9cf2b10"},
-]
+rasa-sdk = []
 redis = [
     {file = "redis-4.4.2-py3-none-any.whl", hash = "sha256:e6206448e2f8a432871d07d432c13ed6c2abcf6b74edb436c99752b1371be387"},
     {file = "redis-4.4.2.tar.gz", hash = "sha256:a010f6cb7378065040a02839c3f75c7e0fb37a87116fb4a95be82a95552776c7"},
