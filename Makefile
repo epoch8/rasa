@@ -301,6 +301,14 @@ build-docker-spacy-it:
 	docker buildx bake -f docker/docker-bake.hcl base-builder && \
 	docker buildx bake -f docker/docker-bake.hcl spacy-it
 
+build-docker-spacy-ru:
+	export IMAGE_NAME=rasa && \
+	docker buildx use default && \
+	docker buildx bake -f docker/docker-bake.hcl base && \
+	docker buildx bake -f docker/docker-bake.hcl base-poetry && \
+	docker buildx bake -f docker/docker-bake.hcl base-builder && \
+	docker buildx bake -f docker/docker-bake.hcl spacy-ru
+
 build-tests-deployment-env: ## Create environment files (.env) for docker-compose.
 	cd tests_deployment && \
 	test -f .env || cat .env.example >> .env
@@ -312,3 +320,15 @@ run-integration-containers: build-tests-deployment-env ## Run the integration te
 stop-integration-containers: ## Stop the integration test containers.
 	cd tests_deployment && \
 	docker-compose -f docker-compose.integration.yml down
+
+build-e8: build-docker
+	docker tag rasa:localdev ghcr.io/epoch8/rasa/rasa:$(shell cat version)
+
+build-e8-spacy-ru: build-docker-spacy-ru
+	docker tag rasa:localdev-spacy-ru ghcr.io/epoch8/rasa/rasa-spacy-ru:$(shell cat version)
+
+upload:
+	docker push ghcr.io/epoch8/rasa/rasa:$(shell cat ./version)
+
+upload-spacy-ru:
+	docker push ghcr.io/epoch8/rasa/rasa-spacy-ru:$(shell cat ./version)
