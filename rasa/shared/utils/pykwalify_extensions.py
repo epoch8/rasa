@@ -18,10 +18,10 @@ def require_response_keys(
             # this is handled by other validation rules
             continue
 
-        if response.get("text") is None and not response.get("custom"):
-            return SchemaError(
-                "Missing 'text' or 'custom' key in response or "
-                "null 'text' value in response."
-            )
+        # if response.get("text") is None and not response.get("custom"):
+        #     return SchemaError(
+        #         "Missing 'text' or 'custom' key in response or "
+        #         "null 'text' value in response."
+        #     )
 
     return True
