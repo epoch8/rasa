@@ -1058,7 +1058,8 @@ def create_app(
         )
 
         training_payload = _training_payload_from_yaml(request, temporary_directory)
-
+        fixed_model_name = request.args.get("fixed_model_name")
+        training_payload.update({"fixed_model_name": fixed_model_name})
         try:
             with app.ctx.active_training_processes.get_lock():
                 app.ctx.active_training_processes.value += 1
