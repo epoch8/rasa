@@ -337,7 +337,7 @@ build-e8-spacy-ru: build-docker-spacy-ru
 	docker tag rasa:localdev-spacy-ru ghcr.io/epoch8/rasa/rasa-spacy-ru:$(shell cat version)
 
 build-e8-spacy-ru-gpu: build-docker-spacy-ru-gpu
-	docker tag rasa:localdev-spacy-ru ghcr.io/epoch8/rasa/rasa-spacy-ru:$(shell cat version)-gpu
+	docker tag rasa:localdev-spacy-ru-gpu ghcr.io/epoch8/rasa/rasa-spacy-ru:$(shell cat version)-gpu
 
 upload:
 	docker push ghcr.io/epoch8/rasa/rasa:$(shell cat ./version)
