@@ -2078,8 +2078,16 @@ def test_merge_domain_with_separate_session_config():
                 {"action_say_something": {"send_domain": True}},
                 {"action_calculate": {"send_domain": True}},
                 "action_no_domain",
+                "validate_my_form",
             ],
-            ["action_say_something", "action_calculate"],
+            ["action_say_something", "action_calculate", "validate_my_form"],
+        ),
+        (
+            [
+                "action_no_domain",
+                "validate_my_form",
+            ],
+            ["validate_my_form"],
         ),
         (
             [
@@ -2094,8 +2102,14 @@ def test_merge_domain_with_separate_session_config():
                 {"action_hello_world": {"send_domain": True}},
                 {"action_say_something": {"send_domain": True}},
                 {"action_calculate": {"send_domain": True}},
+                "validate_my_form",
             ],
-            ["action_hello_world", "action_say_something", "action_calculate"],
+            [
+                "action_hello_world",
+                "action_say_something",
+                "action_calculate",
+                "validate_my_form",
+            ],
         ),
         ([], []),
         (
@@ -2122,12 +2136,14 @@ def test_collect_actions_which_explicitly_need_domain(
                 {"action_say_something": {"send_domain": True}},
                 {"action_calculate": {"send_domain": True}},
                 "action_no_domain",
+                "validate_my_form",
             ],
             [
                 "action_hello_world",
                 "action_say_something",
                 "action_calculate",
                 "action_no_domain",
+                "validate_my_form",
             ],
         )
     ],
@@ -2161,9 +2177,39 @@ def test_collect_actions(
           - action_hello: {{send_domain: True}}
           - action_bye: {{send_domain: True}}
           - action_no_domain
+          - validate_my_form
           """,
-            ["action_hello", "action_bye", "action_no_domain"],
-            ["action_hello", "action_bye"],
+            ["action_hello", "action_bye", "action_no_domain", "validate_my_form"],
+            ["action_hello", "action_bye", "validate_my_form"],
+        ),
+        (
+            f"""
+        version: "{LATEST_TRAINING_DATA_FORMAT_VERSION}"
+        intents:
+            - greet
+
+        entities:
+            - name
+
+        responses:
+            utter_greet:
+                - text: hey there!
+
+        actions:
+          - action_hello
+          - action_bye
+          - action_no_domain
+          - validate_my_form
+          """,
+            [
+                "action_hello",
+                "action_bye",
+                "action_no_domain",
+                "validate_my_form",
+            ],
+            [
+                "validate_my_form",
+            ],
         ),
         (
             f"""
@@ -2237,3 +2283,73 @@ def test_merge_yaml_domains_loads_actions_which_explicitly_need_domain():
     assert sorted(domain._actions_which_explicitly_need_domain) == sorted(
         expected_actions_that_need_domain
     )
+
+
+@pytest.mark.parametrize(
+    "domain_yaml, expected",
+    [
+        (
+            """
+            responses:
+                utter_greet:
+                - text: hey there!
+                  id: '1233'
+                - text: hey ho!
+                  id: '1234'
+            """,
+            {
+                "utter_greet": [
+                    {
+                        "text": "hey there!",
+                        "id": "1233",
+                    },
+                    {
+                        "text": "hey ho!",
+                        "id": "1234",
+                    },
+                ],
+            },
+        ),
+        (
+            """
+            responses:
+                utter_greet:
+                - text: hey there!
+                - text: hey ho!
+                  id: '1234'
+            """,
+            {
+                "utter_greet": [
+                    {
+                        "text": "hey there!",
+                    },
+                    {
+                        "text": "hey ho!",
+                        "id": "1234",
+                    },
+                ],
+            },
+        ),
+        (
+            """
+            responses:
+                utter_greet:
+                - text: hey there!
+                - text: hey ho!
+            """,
+            {
+                "utter_greet": [
+                    {
+                        "text": "hey there!",
+                    },
+                    {
+                        "text": "hey ho!",
+                    },
+                ],
+            },
+        ),
+    ],
+)
+def test_domain_responses_with_ids_are_loaded(domain_yaml, expected) -> None:
+    domain = Domain.from_yaml(domain_yaml)
+    assert domain.responses == expected

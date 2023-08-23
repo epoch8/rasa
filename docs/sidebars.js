@@ -1,8 +1,8 @@
 module.exports = {
     default: [
         'introduction',
+        'rasa-pro',
         'playground',
-
         {
             type: 'category',
             label: 'Installation',
@@ -15,7 +15,7 @@ module.exports = {
                     collapsed: true,
                     type: 'category',
                     items: [
-                        'installation/rasa-pro/architecture-overview',
+                        'installation/rasa-pro/rasa-pro-artifacts',
                         'installation/rasa-pro/installation',
                     ],
                 },
@@ -87,13 +87,16 @@ module.exports = {
                     collapsed: true,
                     items: [
                         'monitoring/analytics/getting-started-with-analytics',
+                        'monitoring/analytics/realtime-markers',
                         'monitoring/analytics/example-queries',
                         'monitoring/analytics/data-structure-reference',
                     ],
                 },
                 'monitoring/tracing',
+                'monitoring/load-testing-guidelines',
             ],
         },
+        'pii-management',
         {
             type: 'category',
             label: 'Concepts',
@@ -121,6 +124,7 @@ module.exports = {
                         'training-data-importers',
                         'language-support',
                         'graph-recipe',
+                        'spaces',
                     ],
                 },
                 {
@@ -176,6 +180,7 @@ module.exports = {
                         'event-brokers',
                         'model-storage',
                         'lock-stores',
+                        'secrets-managers',
                         'nlu-only',
                         'nlg',
                     ],
@@ -217,6 +222,7 @@ module.exports = {
                                 },
                             ],
                         },
+                        'action-server/sanic-extensions',
                     ],
                 },
             ],
@@ -246,6 +252,7 @@ module.exports = {
             label: 'Change Log',
             collapsed: true,
             items: [
+                'rasa-pro-changelog',
                 'changelog',
                 'sdk_changelog',
                 'compatibility-matrix',

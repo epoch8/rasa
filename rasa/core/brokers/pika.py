@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import structlog
 import os
 import ssl
 from asyncio import AbstractEventLoop
@@ -19,6 +20,7 @@ from rasa.shared.utils.io import DEFAULT_ENCODING
 import rasa.shared.utils.common
 
 logger = logging.getLogger(__name__)
+structlogger = structlog.get_logger()
 
 RABBITMQ_EXCHANGE = "rasa-exchange"
 DEFAULT_QUEUE_NAME = "rasa_core_events"
@@ -159,15 +161,35 @@ class PikaEventBroker(EventBroker):
 
         self._exchange = await self._set_up_exchange(channel)
 
-    async def _connect(self) -> aio_pika.abc.AbstractRobustConnection:
+    def _configure_url(self) -> Optional[Text]:
+        """Configures the URL to connect to RabbitMQ."""
         url = None
-        # The `url` parameter will take precedence over parameters like `login` or
-        # `password`.
+
         if self.host.startswith("amqp"):
 
             parsed_host = urlparse(self.host)
+
             amqp_user = f"{self.username}:{self.password}"
-            url = f"{parsed_host.scheme}://{amqp_user}@{parsed_host.netloc}:{self.port}"
+            if amqp_user not in parsed_host.netloc:
+                url = f"{parsed_host.scheme}://{amqp_user}@{parsed_host.netloc}"
+            else:
+                url = f"{parsed_host.scheme}://{parsed_host.netloc}"
+
+            if str(self.port) not in url:
+                url = f"{url}:{self.port}"
+
+            if parsed_host.path:
+                url = f"{url}{parsed_host.path}"
+
+            if parsed_host.query:
+                url = f"{url}?{parsed_host.query}"
+
+        return url
+
+    async def _connect(self) -> aio_pika.abc.AbstractRobustConnection:
+        # The `url` parameter will take precedence over parameters like `login` or
+        # `password`.
+        url = self._configure_url()
 
         ssl_options = _create_rabbitmq_ssl_options(self.host)
         logger.info("Connecting to RabbitMQ ...")
@@ -275,17 +297,24 @@ class PikaEventBroker(EventBroker):
         if self._exchange is None:
             return
 
+        reduced_event = rasa.shared.core.events.remove_parse_data(event)
+
         try:
             await self._exchange.publish(self._message(event, headers), "")
 
-            logger.debug(
-                f"Published Pika events to exchange '{RABBITMQ_EXCHANGE}' on host "
-                f"'{self.host}':\n{event}"
+            structlogger.debug(
+                "pika.events.publish",
+                event_info="Logging a reduced version of the Pika event",
+                rabbitmq_exchange=RABBITMQ_EXCHANGE,
+                host=self.host,
+                rasa_event=reduced_event,
             )
         except Exception as e:
-            logger.error(
-                f"Failed to publish Pika event on host '{self.host}' due to "
-                f"error '{e}'. The message was: \n{event}"
+            structlogger.error(
+                "pika.events.publish.failed",
+                event_info="Logging a reduced version of the failed Pika event",
+                host=self.host,
+                rasa_event=reduced_event,
             )
             if self.should_keep_unpublished_messages:
                 self._unpublished_events.append(event)

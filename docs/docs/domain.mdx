@@ -700,6 +700,11 @@ To apply a slot mapping only within the context of a form, specify
 the name of the form in the `conditions` key of a slot mapping. Conditions list the form name(s)
 for which the mapping is applicable in the `active_loop` key.
 
+:::info New in 3.6
+Slot mappings can now specify `null` as the value of `active_loop` to indicate that the slot should only be filled when
+no form is active. Note that `requested_slot` cannot be used in conjunction with `active_loop: null`.
+:::
+
 Conditions can also include the name of the `requested_slot`. If `requested_slot` is not mentioned,
 then the slot will be set if relevant information is extracted, regardless of which slot is being
 requested by the form.
@@ -809,6 +814,8 @@ action_endpoint:
 ```
 **After selective domain for custom actions is enabled, domain will be sent only to
 those custom actions which have specifically stated that they need it.**
+Custom actions inheriting from rasa-sdk [`FormValidationAction`](./action-server/validation-action.mdx#formvalidationaction-class)
+parent class are an exception to this rule as they will always have the domain sent to them.
 To specify if an action needs the domain add `{send_domain: true}` to custom action in the list
 of actions in `domain.yml`:
 ```YAML
@@ -816,6 +823,7 @@ of actions in `domain.yml`:
 actions:
   - action_hello_world: {send_domain: True} # will receive domain
   - action_calculate_mass_of_sun # will not receive domain
+  - validate_my_form # will receive domain
 ```
 
 
