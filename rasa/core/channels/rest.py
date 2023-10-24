@@ -34,6 +34,9 @@ class RestInput(InputChannel):
     def name(cls) -> Text:
         return "rest"
 
+    def __init__(self):
+        self._background_task = set()
+
     @staticmethod
     async def on_message_wrapper(
         on_new_message: Callable[[UserMessage], Awaitable[Any]],
@@ -118,6 +121,17 @@ class RestInput(InputChannel):
 
         return stream
 
+    def _logger_task_status(self, task):
+        try:
+            task.result()
+            logger.info(f"{task.get_name()} is finished: {task.done()}")
+        except asyncio.CancelledError as e:
+            logger.exception(e)
+            logger.error(f"{task.get_name()} Canceled Error!")
+        except asyncio.InvalidStateError as e:
+            logger.error(f"{task.get_name()} Invalid State Error!")
+        return self._background_task.discard
+
     def blueprint(
         self, on_new_message: Callable[[UserMessage], Awaitable[None]]
     ) -> Blueprint:
@@ -159,15 +173,16 @@ class RestInput(InputChannel):
                 collector = CollectingOutputChannel()
                 # noinspection PyBroadException
                 try:
-                    await on_new_message(
-                        UserMessage(
+                    user_msg = UserMessage(
                             text,
                             collector,
                             sender_id,
                             input_channel=input_channel,
                             metadata=metadata,
                         )
-                    )
+                    task: asyncio.Task = asyncio.create_task(on_new_message(user_msg))
+                    self._background_tasks.add(task)
+                    task.add_done_callback(self._logger_task_status(task))
                 except CancelledError:
                     structlogger.error(
                         "rest.message.received.timeout", text=copy.deepcopy(text)
