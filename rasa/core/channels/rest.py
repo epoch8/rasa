@@ -35,7 +35,7 @@ class RestInput(InputChannel):
         return "rest"
 
     def __init__(self):
-        self._background_task = set()
+        self._background_tasks = set()
 
     @staticmethod
     async def on_message_wrapper(
@@ -130,7 +130,7 @@ class RestInput(InputChannel):
             logger.error(f"{task.get_name()} Canceled Error!")
         except asyncio.InvalidStateError as e:
             logger.error(f"{task.get_name()} Invalid State Error!")
-        return self._background_task.discard
+        return self._background_tasks.discard
 
     def blueprint(
         self, on_new_message: Callable[[UserMessage], Awaitable[None]]
@@ -180,9 +180,9 @@ class RestInput(InputChannel):
                             input_channel=input_channel,
                             metadata=metadata,
                         )
-                    task: asyncio.Task = asyncio.create_task(on_new_message(user_msg))
-                    self._background_tasks.add(task)
-                    task.add_done_callback(self._logger_task_status(task))
+                    # using the example on line 109
+                    task = asyncio.ensure_future(on_new_message(user_msg))
+                    await task
                 except CancelledError:
                     structlogger.error(
                         "rest.message.received.timeout", text=copy.deepcopy(text)
