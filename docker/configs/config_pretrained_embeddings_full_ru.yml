@@ -1,0 +1,18 @@
+language: "ru"
+
+pipeline:
+  - name: WhitespaceTokenizer
+  - name: RegexFeaturizer
+
+  - name: LanguageModelFeaturizer
+    model_name: "bert"
+    model_weights: "ai-forever/sbert_large_mt_nlu_ru"
+
+  - name: DIETClassifier
+    epochs: 50
+    batch_size: 4
+    constrain_similarities: true
+
+  - name: FallbackClassifier
+    threshold: 0.2
+    ambiguity_threshold: 0.05

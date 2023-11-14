@@ -285,6 +285,14 @@ build-docker-spacy-ru:
 	docker buildx bake -f docker/docker-bake.hcl base-builder && \
 	docker buildx bake -f docker/docker-bake.hcl spacy-ru
 
+build-docker-full-ru:
+	export IMAGE_NAME=rasa && \
+	docker buildx use default && \
+	docker buildx bake -f docker/docker-bake.hcl base && \
+	docker buildx bake -f docker/docker-bake.hcl base-poetry && \
+	docker buildx bake -f docker/docker-bake.hcl base-builder && \
+	docker buildx bake -f docker/docker-bake.hcl full-ru
+
 build-docker-spacy-ru-gpu:
 	export IMAGE_NAME=rasa && \
 	export BASE_IMAGE=nvidia/cuda:11.2.2-devel-ubuntu20.04 && \
@@ -308,6 +316,9 @@ stop-integration-containers: ## Stop the integration test containers.
 
 build-e8: build-docker
 	docker tag rasa:localdev ghcr.io/epoch8/rasa/rasa:$(shell cat version)
+
+build-e8-full-ru: build-docker-full-ru
+	docker tag rasa:localdev-full-ru ghcr.io/epoch8/rasa/rasa-full-ru:$(shell cat version)
 
 build-e8-spacy-ru: build-docker-spacy-ru
 	docker tag rasa:localdev-spacy-ru ghcr.io/epoch8/rasa/rasa-spacy-ru:$(shell cat version)

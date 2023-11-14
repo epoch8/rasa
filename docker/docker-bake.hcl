@@ -194,6 +194,25 @@ target "spacy-en" {
   ]
 }
 
+target "full-ru" {
+  dockerfile = "docker/Dockerfile.pretrained_embeddings_full_ru"
+  tags       = ["${IMAGE_NAME}:${IMAGE_TAG}-full-ru"]
+
+  args = {
+    IMAGE_BASE_NAME         = "${IMAGE_NAME}"
+    BASE_IMAGE_HASH         = "${BASE_IMAGE_HASH}"
+    BASE_BUILDER_IMAGE_HASH = "${BASE_BUILDER_IMAGE_HASH}"
+  }
+
+  cache-to = ["type=inline"]
+
+  cache-from = [
+    "type=registry,ref=${IMAGE_NAME}:base-${BASE_IMAGE_HASH}",
+    "type=registry,ref=${IMAGE_NAME}:base-builder-${BASE_BUILDER_IMAGE_HASH}",
+    "type=registry,ref=${IMAGE_NAME}:${IMAGE_TAG}-full-ru",
+  ]
+}
+
 target "spacy-ru" {
   dockerfile = "docker/Dockerfile.pretrained_embeddings_spacy_ru"
   tags       = ["${IMAGE_NAME}:${IMAGE_TAG}-spacy-ru"]
