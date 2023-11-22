@@ -334,3 +334,6 @@ upload-spacy-ru:
 
 upload-spacy-ru-gpu:
 	docker push ghcr.io/epoch8/rasa/rasa-spacy-ru:$(shell cat ./version)-gpu
+
+upload-sbert-l:
+	docker push ghcr.io/epoch8/rasa/rasa-sbert-l:$(shell cat ./version)
