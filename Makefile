@@ -285,6 +285,14 @@ build-docker-spacy-ru:
 	docker buildx bake -f docker/docker-bake.hcl base-builder && \
 	docker buildx bake -f docker/docker-bake.hcl spacy-ru
 
+build-docker-sbert-l:
+	export IMAGE_NAME=rasa && \
+	docker buildx use default && \
+	docker buildx bake -f docker/docker-bake.hcl base && \
+	docker buildx bake -f docker/docker-bake.hcl base-poetry && \
+	docker buildx bake -f docker/docker-bake.hcl base-builder && \
+	docker buildx bake -f docker/docker-bake.hcl sbert-l
+
 build-docker-spacy-ru-gpu:
 	export IMAGE_NAME=rasa && \
 	export BASE_IMAGE=nvidia/cuda:11.2.2-devel-ubuntu20.04 && \
@@ -309,6 +317,9 @@ stop-integration-containers: ## Stop the integration test containers.
 build-e8: build-docker
 	docker tag rasa:localdev ghcr.io/epoch8/rasa/rasa:$(shell cat version)
 
+build-e8-sbert-l: build-docker-sbert-l
+	docker tag rasa:localdev-sbert-l ghcr.io/epoch8/rasa/rasa-sbert-l:$(shell cat version)
+
 build-e8-spacy-ru: build-docker-spacy-ru
 	docker tag rasa:localdev-spacy-ru ghcr.io/epoch8/rasa/rasa-spacy-ru:$(shell cat version)
 
@@ -323,3 +334,6 @@ upload-spacy-ru:
 
 upload-spacy-ru-gpu:
 	docker push ghcr.io/epoch8/rasa/rasa-spacy-ru:$(shell cat ./version)-gpu
+
+upload-sbert-l:
+	docker push ghcr.io/epoch8/rasa/rasa-sbert-l:$(shell cat ./version)

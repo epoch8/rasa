@@ -194,6 +194,25 @@ target "spacy-en" {
   ]
 }
 
+target "sbert-l" {
+  dockerfile = "docker/Dockerfile.pretrained_embeddings_sbert_large"
+  tags       = ["${IMAGE_NAME}:${IMAGE_TAG}-sbert-l"]
+
+  args = {
+    IMAGE_BASE_NAME         = "${IMAGE_NAME}"
+    BASE_IMAGE_HASH         = "${BASE_IMAGE_HASH}"
+    BASE_BUILDER_IMAGE_HASH = "${BASE_BUILDER_IMAGE_HASH}"
+  }
+
+  cache-to = ["type=inline"]
+
+  cache-from = [
+    "type=registry,ref=${IMAGE_NAME}:base-${BASE_IMAGE_HASH}",
+    "type=registry,ref=${IMAGE_NAME}:base-builder-${BASE_BUILDER_IMAGE_HASH}",
+    "type=registry,ref=${IMAGE_NAME}:${IMAGE_TAG}-sbert-l",
+  ]
+}
+
 target "spacy-ru" {
   dockerfile = "docker/Dockerfile.pretrained_embeddings_spacy_ru"
   tags       = ["${IMAGE_NAME}:${IMAGE_TAG}-spacy-ru"]
