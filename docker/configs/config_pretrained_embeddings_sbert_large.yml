@@ -6,7 +6,7 @@ pipeline:
 
   - name: LanguageModelFeaturizer
     model_name: "bert"
-    model_weights: "ai-forever/sbert_large_mt_nlu_ru"
+    model_weights: "weighs"
 
   - name: DIETClassifier
     epochs: 50

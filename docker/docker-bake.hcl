@@ -194,9 +194,9 @@ target "spacy-en" {
   ]
 }
 
-target "full-ru" {
-  dockerfile = "docker/Dockerfile.pretrained_embeddings_full_ru"
-  tags       = ["${IMAGE_NAME}:${IMAGE_TAG}-full-ru"]
+target "sbert-l" {
+  dockerfile = "docker/Dockerfile.pretrained_embeddings_sbert_large"
+  tags       = ["${IMAGE_NAME}:${IMAGE_TAG}-sbert-l"]
 
   args = {
     IMAGE_BASE_NAME         = "${IMAGE_NAME}"
@@ -209,7 +209,7 @@ target "full-ru" {
   cache-from = [
     "type=registry,ref=${IMAGE_NAME}:base-${BASE_IMAGE_HASH}",
     "type=registry,ref=${IMAGE_NAME}:base-builder-${BASE_BUILDER_IMAGE_HASH}",
-    "type=registry,ref=${IMAGE_NAME}:${IMAGE_TAG}-full-ru",
+    "type=registry,ref=${IMAGE_NAME}:${IMAGE_TAG}-sbert-l",
   ]
 }
 

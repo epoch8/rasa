@@ -7,7 +7,7 @@ FROM ${IMAGE_BASE_NAME}:base-builder-${BASE_BUILDER_IMAGE_HASH} as builder
 
 # copy files
 COPY . /build/
-COPY docker/configs/config_pretrained_embeddings_full_ru.yml /build/config.yml
+COPY docker/configs/config_pretrained_embeddings_sbert_large.yml /build/config.yml
 
 # change working directory
 WORKDIR /build
@@ -15,7 +15,7 @@ WORKDIR /build
 # install dependencies
 RUN python -m venv /opt/venv && \
   . /opt/venv/bin/activate && pip install --no-cache-dir -U "pip==22.*" -U "wheel>0.38.0"
-RUN . /opt/venv/bin/activate && poetry install --extras full --no-dev --no-root --no-interaction
+RUN . /opt/venv/bin/activate && poetry install --extras transformers --no-dev --no-root --no-interaction
 RUN . /opt/venv/bin/activate && poetry build -f wheel -n && \
   pip install --no-deps dist/*.whl && \
   rm -rf dist *.egg-info
@@ -37,6 +37,10 @@ ENV HOME=/app
 
 # update permissions & change user to not run as root
 WORKDIR /app
+
+RUN pip install huggingface_hub
+RUN python -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='ai-forever/sbert_large_mt_nlu_ru', ignore_patterns=['*.msgpack', '*.bin'], local_dir='./weighs', local_dir_use_symlinks=True);"
+
 RUN chgrp -R 0 /app && chmod -R g=u /app && chmod o+wr /app
 USER 1001
 
