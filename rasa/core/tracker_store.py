@@ -615,6 +615,47 @@ class RedisTrackerStore(TrackerStore, SerializedTrackerAsText):
         return merged
 
 
+class RedisClusterTrackerStore(RedisTrackerStore):
+    """Stores conversation history in Redis."""
+
+    def __init__(
+        self,
+        domain: Domain,
+        host: Text = "localhost",
+        port: int = 6379,
+        db: int = 0,
+        password: Optional[Text] = None,
+        event_broker: Optional[EventBroker] = None,
+        record_exp: Optional[float] = None,
+        key_prefix: Optional[Text] = None,
+        use_ssl: bool = False,
+        ssl_keyfile: Optional[Text] = None,
+        ssl_certfile: Optional[Text] = None,
+        ssl_ca_certs: Optional[Text] = None,
+        **kwargs: Dict[Text, Any],
+    ) -> None:
+        """Initializes the tracker store."""
+        import redis
+
+        self.red = redis.cluster.RedisCluster(
+            host=host,
+            port=port,
+            password=password,
+            ssl=use_ssl,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile,
+            ssl_ca_certs=ssl_ca_certs,
+            decode_responses=True,
+        )
+        self.record_exp = record_exp
+
+        self.key_prefix = DEFAULT_REDIS_TRACKER_STORE_KEY_PREFIX
+        if key_prefix:
+            logger.debug(f"Setting non-default redis key prefix: '{key_prefix}'.")
+            self._set_key_prefix(key_prefix)
+
+        super(RedisTrackerStore, self).__init__(domain, event_broker, **kwargs)
+
 class DynamoTrackerStore(TrackerStore, SerializedTrackerAsDict):
     """Stores conversation history in DynamoDB."""
 
@@ -1499,6 +1540,13 @@ def _create_from_endpoint_config(
         tracker_store: TrackerStore = InMemoryTrackerStore(domain, event_broker)
     elif endpoint_config.type.lower() == "redis":
         tracker_store = RedisTrackerStore(
+            domain=domain,
+            host=endpoint_config.url,
+            event_broker=event_broker,
+            **endpoint_config.kwargs,
+        )
+    elif endpoint_config.type.lower() == "redis_cluster":
+        tracker_store = RedisClusterTrackerStore(
             domain=domain,
             host=endpoint_config.url,
             event_broker=event_broker,
