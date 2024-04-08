@@ -150,10 +150,10 @@ class DefaultV1Recipe(Recipe):
             else:
                 unique_types = set(component_types)
 
-            cls._registered_components[
-                registered_class.__name__
-            ] = cls.RegisteredComponent(
-                registered_class, unique_types, is_trainable, model_from
+            cls._registered_components[registered_class.__name__] = (
+                cls.RegisteredComponent(
+                    registered_class, unique_types, is_trainable, model_from
+                )
             )
             return registered_class
 
@@ -581,12 +581,21 @@ class DefaultV1Recipe(Recipe):
             config={"exclusion_percentage": cli_parameters.get("exclusion_percentage")},
             is_input=True,
         )
+
+        training_tracker_provider_name = train_config.get("training_tracker_provider")
+        if training_tracker_provider_name is not None:
+            training_tracker_provider_cls = self._from_registry(
+                training_tracker_provider_name
+            ).clazz
+        else:
+            training_tracker_provider_cls = TrainingTrackerProvider
+
         train_nodes["training_tracker_provider"] = SchemaNode(
             needs={
                 "story_graph": "story_graph_provider",
                 "domain": "domain_for_core_training_provider",
             },
-            uses=TrainingTrackerProvider,
+            uses=training_tracker_provider_cls,
             constructor_name="create",
             fn="provide",
             config={
