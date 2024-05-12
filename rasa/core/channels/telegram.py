@@ -49,6 +49,13 @@ class TelegramOutput(Bot, OutputChannel):
         """Sends an image."""
         await self.send_photo(recipient_id, image)
 
+    async def send_poll_message(
+        self, recipient_id: Text, question: Text, options: List[Text], **kwargs: Any
+    ) -> None:
+        """Sends a poll."""
+        logger.info(f"send_poll kwargs - {kwargs}")
+        await self.send_poll(recipient_id, question, options)
+
     async def send_text_with_buttons(
         self,
         recipient_id: Text,
@@ -137,6 +144,7 @@ class TelegramOutput(Bot, OutputChannel):
                 "currency",
                 "prices",
             ): "send_invoice",
+            ("question", "options"): "send_poll",
         }
 
         for params in send_functions.keys():
