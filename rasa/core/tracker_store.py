@@ -597,21 +597,24 @@ class RedisTrackerStore(TrackerStore, SerializedTrackerAsText):
             return tracker
 
         merged = tracker.init_copy()
-        merged.update_with_events(
-            list(prior_tracker.events), override_timestamp=False, domain=None
-        )
+
+        def make_hashable(obj: Any):
+            if isinstance(obj, dict):
+                return frozenset((key, make_hashable(value)) for key, value in obj.items())
+            elif isinstance(obj, list):
+                return tuple(make_hashable(item) for item in obj)
+            return obj
+
+        merged_events = list(prior_tracker.events)
+        existing_event_hashes = {make_hashable(event.as_dict()) for event in merged_events}
+
+        merged.update_with_events(merged_events, override_timestamp=False, domain=None)
 
         for new_event in tracker.events:
-            # Event subclasses implement `__eq__` method that make it difficult
-            # to compare events. We use `as_dict` to compare events.
-            if all(
-                [
-                    new_event.as_dict() != existing_event.as_dict()
-                    for existing_event in merged.events
-                ]
-            ):
+            event_hash = make_hashable(new_event.as_dict())
+            if event_hash not in existing_event_hashes:
                 merged.update(new_event)
-
+                existing_event_hashes.add(event_hash)
         return merged
 
 
