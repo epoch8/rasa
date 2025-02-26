@@ -295,7 +295,7 @@ build-docker-sbert-l:
 
 build-docker-spacy-ru-gpu:
 	export IMAGE_NAME=rasa && \
-	export BASE_IMAGE=nvidia/cuda:11.2.2-devel-ubuntu20.04 && \
+	export BASE_IMAGE=nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04 && \
 	docker buildx use default && \
 	docker buildx bake -f docker/docker-bake.hcl base && \
 	docker buildx bake -f docker/docker-bake.hcl base-poetry && \
