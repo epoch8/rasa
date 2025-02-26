@@ -233,7 +233,7 @@ target "spacy-ru" {
 }
 
 target "spacy-ru-gpu" {
-  dockerfile = "docker/Dockerfile.pretrained_embeddings_spacy_ru_gpu"
+  dockerfile = "docker/Dockerfile.pretrained_embeddings_spacy_ru"
   tags       = ["${IMAGE_NAME}:${IMAGE_TAG}-spacy-ru-gpu"]
 
   args = {
